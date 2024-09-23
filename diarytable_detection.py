@@ -10,7 +10,7 @@ INPUT_HEIGHT = 640
 recognition_classes = ['diarypage', 'date', 'row', 'location']
 
 confThreshold = 0.6  # Confidence threshold
-nmsThreshold = 0.8 # Non-maximum suppression threshold
+nmsThreshold = 0.3 # Non-maximum suppression threshold
 dir_path = os.path.dirname(os.path.realpath(__file__))
 detection_model = cv2.dnn.readNetFromONNX(f"model/dairytable_model.onnx")
 
@@ -66,31 +66,26 @@ def DetectionProcess(original_image):
 
 def DetectDiaryTable(img):
 	detections = DetectionProcess(img)
-	detected_cards = []
+	detected_values = []
 	for detection in detections:
 		class_id, class_name, confidence, box, scale = \
 			detection['class_id'], detection['class_name'], detection['confidence'], detection['box'], detection[
 				'scale']
-		print(detection['class_name'])
-		print(detection['confidence'])
+		# print(detection['class_name'])
+		# print(detection['confidence'])
 		left, top, right, bottom = round(box[0] * scale), round(box[1] * scale), round(
 			(box[0] + box[2]) * scale), round((box[1] + box[3]) * scale)
 
-		detected_cards.append([left, top, right, bottom])
-		cv2.rectangle(img, (left, top), (right, bottom), (0, 0, 255), 2)
+		detected_values.append({'class_id' : detection['class_id'], 'class_name' : detection['class_name'], 'confidence' : detection['confidence'], 'box' : detection['box'], 'scale' : detection['scale']})
+		# cv2.rectangle(img, (left, top), (right, bottom), (0, 0, 255), 2)
+		# cv2.putText(img, detection['class_name'], (left, top), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,255), 1)
+	# height, width, _ = img.shape
+	# cv2.imshow("Diarypage_Detection", cv2.resize(img, (int(width/2), int(height/2))))
+	# cv2.waitKey(0)
+	# Sort detected values based on the 'top' coordinate
+	detected_values.sort(key=lambda x: x['box'][1])
+	return detected_values
 
-		cv2.putText(img, detection['class_name'], (left, top), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,255), 1)
-	height, width, _ = img.shape
-	
-	cv2.imshow("Diarypage_Detection", cv2.resize(img, (int(width/2), int(height/2))))
-	cv2.waitKey(0)
-
-if __name__ == '__main__':
-	ls_images = list_images(dir_path + "/images/")
-	for input_image in ls_images:
-		inputFilename = os.path.join(dir_path + "/images/", input_image)
-		img = cv2.imread(inputFilename)
-		DetectDiaryTable(img)
 
 
 
