@@ -9,8 +9,8 @@ INPUT_HEIGHT = 640
 
 recognition_classes = ['diarypage', 'date', 'row', 'location']
 
-confThreshold = 0.6  # Confidence threshold
-nmsThreshold = 0.3 # Non-maximum suppression threshold
+confThreshold = 0.3  # Confidence threshold
+nmsThreshold = 0.5 # Non-maximum suppression threshold
 dir_path = os.path.dirname(os.path.realpath(__file__))
 detection_model = cv2.dnn.readNetFromONNX(f"model/dairytable_model.onnx")
 

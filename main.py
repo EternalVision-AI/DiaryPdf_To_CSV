@@ -96,6 +96,7 @@ class PDFImageProcessorApp:
     # Function to correct spelling
 
     def ProcessDiaryPage(self, image, pdf_name):
+        image_height, image_width, _= image.shape
         if DetectDiagyPage(image):
           detection_values = DetectDiaryTable(image)
           extracted_data = {
@@ -107,6 +108,10 @@ class PDFImageProcessorApp:
           # Iterate over the detections and extract values based on class_name
           location = ""
           date = ""
+          
+          #temp variables
+          prev_left = int(image_width/20)
+          prev_right = int(image_width*19/20)
           for detection in detection_values:
               class_id = detection['class_id']
               class_name = detection['class_name']
@@ -119,10 +124,22 @@ class PDFImageProcessorApp:
               # Calculate bounding box coordinates
               left, top, right, bottom = round(box[0] * scale), round(box[1] * scale), round(
                   (box[0] + box[2]) * scale), round((box[1] + box[3]) * scale)
+              if left<0: left = 0
+              if top<0: top = 0
+              if right>image.shape[1]: right = image.shape[1] - 1
+              if bottom>image.shape[0]: bottom = image.shape[0] - 1
               
+              if class_name == "row" and right - left < int(image_width*5/7):
+                  left = prev_left
+                  right = prev_right
+                  cv2.rectangle(image, (left, top), (right, bottom), (0, 255, 0), 2)
+              else:
+                  cv2.rectangle(image, (left, top), (right, bottom), (0, 0, 255), 2)
+                  
               # Crop the image to the region specified by the bounding box
               cropped_image = image[top:bottom, left:right]  # Crop using NumPy slicing
-              cv2.rectangle(image, (left, top), (right, bottom), (0, 0, 255), 2)
+              
+
               origianl_left = left
               origianl_top = top
               origianl_right = right
@@ -144,6 +161,8 @@ class PDFImageProcessorApp:
                   result = ocr.ocr(timephone_image, cls=True)     
                   time_text = ""
                   
+                  prev_left = left
+                  prev_right = right
                   for line in result:
                     if line:
                       for word_info in line:
@@ -240,7 +259,7 @@ class PDFImageProcessorApp:
           print(f"CSV file '{csv_filename}' created successfully.")
           height, width, _ = image.shape
           cv2.imshow("Diarypage_Detection", cv2.resize(image, (int(width/2), int(height/2))))
-          cv2.waitKey(1)
+          cv2.waitKey(0)
         
 
         
