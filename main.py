@@ -11,12 +11,9 @@ import numpy as np
 from spellchecker import SpellChecker
 import re
 import csv
-ocr = PaddleOCR(
-    lang="en",  # Specify the language
-
-)
-
-
+import threading
+from PyPDF2 import PdfReader
+ocr = PaddleOCR(lang="en")
 
 class PDFImageProcessorApp:
     def __init__(self, root):
@@ -38,11 +35,16 @@ class PDFImageProcessorApp:
         self.button_select_folder = ctk.CTkButton(root, text="Select PDF Folder", command=self.select_pdf_folder)
         self.button_select_folder.pack(pady=10)
 
-        self.process_button = ctk.CTkButton(root, text="Process PDFs", command=self.process_pdfs)
+        self.process_button = ctk.CTkButton(root, text="Process PDFs", command=self.start_processing)
         self.process_button.pack(pady=20)
 
         self.status_label = ctk.CTkLabel(root, text="", font=("Arial", 14))
         self.status_label.pack(pady=10)
+
+        # Progress Bar
+        self.progress_bar = ctk.CTkProgressBar(root, orientation="horizontal", mode="determinate")
+        self.progress_bar.pack(pady=10)
+        self.progress_bar.set(0)
 
         self.pdf_files = []
 
@@ -60,40 +62,85 @@ class PDFImageProcessorApp:
             self.pdf_files = [os.path.join(folder_path, f) for f in os.listdir(folder_path) if f.endswith(".pdf")]
             self.status_label.configure(text=f"Selected {len(self.pdf_files)} PDF files")
 
-    def process_pdfs(self):
+    def start_processing(self):
         if not self.pdf_files:
             messagebox.showerror("Error", "Please select a PDF file or folder first")
             return
 
-        for pdf_file in self.pdf_files:
+        # Disable buttons and show loading cursor during processing
+        self.root.config(cursor="wait")
+        self.process_button.configure(state="disabled")
+        self.button_select_file.configure(state="disabled")
+        self.button_select_folder.configure(state="disabled")
+
+        # Start processing in a separate thread
+        processing_thread = threading.Thread(target=self.process_pdfs)
+        processing_thread.start()
+
+    def process_pdfs(self):
+        num_files = len(self.pdf_files)
+        for idx, pdf_file in enumerate(self.pdf_files):
             self.process_pdf(pdf_file)
+            # Update progress bar
+            progress = (idx + 1) / num_files
+            self.progress_bar.set(progress)
+            self.status_label.configure(text=f"Processed {idx + 1} of {num_files} files")
+            self.root.update_idletasks()  # Ensure the GUI remains updated during processing
+
+        # Enable buttons and reset cursor after processing
+        self.root.config(cursor="")
+        self.process_button.configure(state="normal")
+        self.button_select_file.configure(state="normal")
+        self.button_select_folder.configure(state="normal")
         
         messagebox.showinfo("Success", "PDF Processing completed!")
         self.status_label.configure(text="Processing Completed")
 
+
+
     def process_pdf(self, pdf_file):
-        # Convert PDF to images and process each page
-        pages = convert_from_path(pdf_file)
+
         pdf_name = os.path.splitext(os.path.basename(pdf_file))[0]
         output_folder = os.path.join(os.path.dirname(pdf_file), pdf_name + "_processed")
 
         if not os.path.exists(output_folder):
             os.makedirs(output_folder)
+        start_page=1
+        end_page=None
+        # # Get the total number of pages
+        total_pages =  len(PdfReader(pdf_file).pages)
+        print(f"Total number of pages: {total_pages}")
 
-        for page_num, page_image in enumerate(pages, start=1):
-            image_path = os.path.join(output_folder, f"page_{page_num}.png")
+        # If end_page is not provided, use the total number of pages
+        if end_page is None or end_page > total_pages:
+            end_page = total_pages
 
-            # Save the page as an image (PIL image -> OpenCV format)
-            page_image_cv = cv2.cvtColor(np.array(page_image), cv2.COLOR_RGB2BGR)
+        # Loop through each page individually using start_page and end_page
+        
+        page_number = start_page
+        while page_number <= end_page:
+            try:
+                # Convert one page at a time
+                images = convert_from_path(pdf_file, first_page=page_number, last_page=page_number)
+                
+                # Save the image with a proper filename
+                for i, image in enumerate(images):
+                    open_cv_image = np.array(image)
+                    # Convert RGB to BGR
+                    open_cv_image = cv2.cvtColor(open_cv_image, cv2.COLOR_RGB2BGR)
+                    processed_image = self.ProcessDiaryPage(open_cv_image, pdf_name)
+                    # Update status for each page
+                    self.status_label.configure(text=f"Processed {pdf_file} - Page {page_number}")
+                    self.root.update_idletasks()  # Keep UI responsive
+                
+                # Move to the next page
+                page_number += 1
 
-            # Process the image using OpenCV
-            processed_image = self.ProcessDiaryPage(page_image_cv, pdf_name)
+            except Exception as e:
+                print(f"Error processing page {page_number}: {str(e)}")
+                break  # Stop processing if an error occurs (e.g., no more pages)
 
-            # Save processed image
-            # cv2.imwrite(image_path, processed_image)
-
-            self.status_label.configure(text=f"Processed {pdf_file} - Page {page_num}")
-    # Function to correct spelling
+            
 
     def ProcessDiaryPage(self, image, pdf_name):
         image_height, image_width, _= image.shape
@@ -258,12 +305,9 @@ class PDFImageProcessorApp:
 
           print(f"CSV file '{csv_filename}' created successfully.")
           height, width, _ = image.shape
-          cv2.imshow("Diarypage_Detection", cv2.resize(image, (int(width/2), int(height/2))))
-          cv2.waitKey(0)
+          cv2.imshow("Diarypage_Detection", cv2.resize(image, (int(width*2/5), int(height*2/5))))
+          cv2.waitKey(1)
         
-
-        
-
 
 if __name__ == "__main__":
     root = ctk.CTk()
